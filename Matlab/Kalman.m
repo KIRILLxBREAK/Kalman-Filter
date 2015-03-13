@@ -96,6 +96,3 @@ ylabel('coordinate, m');
 hold on;
 plot(k, x_k, 'y')
 legend('meassurement', 'filter');
-
-%x(:,:)
-%z(:,:)
