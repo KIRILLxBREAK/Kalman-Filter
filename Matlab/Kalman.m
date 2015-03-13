@@ -14,8 +14,8 @@
 %
 % $$x_{k+1} = Fx_k+w_k$$
 %% Intitialization
-x = zeros(2,100);
-z = zeros(2,100);
+x = zeros(3,100);
+z = zeros(3,100);
 %x = zeros(1, 100);
 %z = zeros(1, 100);
 sigma = 1;
@@ -27,72 +27,84 @@ for i=2:100
     k(i) = k(i-1)+T;
 end
 
-F = [1 T; 0 1]
-P = [sigma*sigma sigma*sigma/T;sigma*sigma/T 2*sigma*sigma/(T*T)]
-%Q_k = sample_gaussian(0, Q, 99);
-%H = [1 0; 0 1]
-H = [1 0]
-%R = randn(2);
+F = [1 T T*T/2; 0 1 T; 0 0 1];
+P = [sigma*sigma 3*sigma*sigma/(2*T) sigma*sigma/(T*T); 3*sigma*sigma/(2*T) 13*sigma*sigma/(2*T*T) 6*sigma*sigma/(T*T*T); sigma*sigma/(T*T) 6*sigma*sigma/(T*T*T) 6*sigma*sigma/(T*T*T*T)];
+H = [1 0 0];
 R = sigma;
-Q = zeros(2);
+Q = zeros(3);
 q = 0;
-I = [1 0; 0 1];
-%K = zeros(1,100);
-%R_k = sample_gaussian(0, R, 99);
+I = [1 0 0; 0 1 0; 0 0 1];
+K = zeros(3,1);
 
 %% Test
-z(:,1) = [1 8000];
-z(:,2) = [2 1];
-%z(1) = 1;
-%z(2) = 2;
+z(:,1) = [0 0 2];
+z(:,2) = [1 2 2];
+z(:,3) = [4 4 2];
+
+x_k = zeros(3, 1);
+x_k_1 = zeros(3, 1);
+
 for i=1:100
     if i==1
-        x(:,1) = z(:,1)
-        %x(1)=z(1);
+        x_k = z(:,1);
+        x(:,1) = x_k;
     elseif i==2
-        x(1,2)=z(1,2);
-        %x(2)=z(2);
-        x(2,2)=(x(1,2)-x(1,1))/T;
-        i
-        %Kaa = 1;
-        %K = 2;
-        %P = [sigma0 Kaa;Kaa K]
-        P
+        x_k = z(:,2);
+        x(:,2) = x_k;
+    elseif i==3
+        x_k_1 = z(:,3);
+        x(:,3) = x_k_1;
     else
         %prediction
-        z(:,i) = F*z(:,i-1);
-        x(:,i) = F*x(:,i-1);
-        %z(i) = z(i-1)+ (z(i-1)-z(i-2))*T;
-        %x(i) = x(i-1)+ (x(i-1)-x(i-2))*T;
+        %z(:,i) = F*z(:,i-1);
+        [t,Y] = ode45(@Kalman_moving, [0 i], [0 0 2]);
+        z(:,i) = Y(end,:);
+        x_k = F*x_k_1;
+        x(:,i) = F*x_k;
         
         P = F*P*F'+Q;
-        %sigma0 = (sigma0 + 2*Kaa*T + K*T*T);
-        %Kaa = Kaa + K*T;        
         
         %correction
         K = P*H'/(H*P*H'+R);
-        %W = sigma0/(sigma0+sigma);
-        %Wa = Kaa/(sigma0+sigma);
         
-        x(:,i) = x(:,i) + K*(z(1,i) - H*x(:,i));
-        %x(i) = x(i) + W*(z(i)-x(i));
+        x_k = x_k + K*(z(1,i) - H*x_k);
+        P = (I-K*H)*P;       
         
         i
-        P = (I-K*H)*P
-        %sigma0 = W*sigma;
-        %Kaa = Wa*sigma;
-        %K = W*K;
-        %P = [sigma0 Kaa; Kaa K]
+        n=i;
+        P
+        %P = vpa(P, 10)
+        
+        k11 = 3*(3*n*n - 3*n + 2)/(n*(n+1)*(n+2));
+        k12 = - 18*(2*n-1)/(n*(n+1)*(n+2));
+        k13 = 60/(n*(n+1)*(n+2));
+        k22 = (12*(2*n-1)*(8*n-11))/(n*(n*n-4)*(n*n-1));
+        k23 = 360/(n*(n*n-4)*(n+1));
+        k33 = 720/(n*(n*n-4)*(n*n-1));
+        
+        Pnew = [k11 k12 k13; k12 k22 k23; k13 k23 k33]
+        %Pnew = vpa(Pnew, 10)
+        x_k_1 = x_k;
     end    
 end
 
-z_k = z(1,:);
-x_k = x(1,:);
-plot(k, z_k, 'r')
-axis auto;
-title('Kalman filter');
+subplot(1,3,1);
+plot(k, x(1,:), '-', k, z(1,:), 'r-.');
+title('Coordinate Filter');
 xlabel('t, c');
 ylabel('coordinate, m');
-hold on;
-plot(k, x_k, 'y')
+legend('meassurement', 'filter');
+
+subplot(1,3,2);
+plot(k, x(2,:), '-', k, z(2,:), 'r-.');
+title('Velocity Filter');
+xlabel('t, c');
+ylabel('velocity, m/c');
+legend('meassurement', 'filter');
+
+subplot(1,3,3);
+plot(k, x(3,:), '-', k, z(3,:), 'r-.');
+title('Acceleration Filter');
+xlabel('t, c');
+ylabel('acceleration, m/c*c');
 legend('meassurement', 'filter');
