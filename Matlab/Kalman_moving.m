@@ -7,4 +7,3 @@ function dy = Kalman_moving(t,y)
     dy(5) = y(6);
     dy(4) = y(5);
 end
-

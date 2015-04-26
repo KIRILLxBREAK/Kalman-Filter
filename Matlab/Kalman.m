@@ -186,4 +186,3 @@ end
 % title('y Acceleration Filter');
 % xlabel('t, c');
 % ylabel('acceleration, m/c*c');
-% legend('meassurement', 'filter');
