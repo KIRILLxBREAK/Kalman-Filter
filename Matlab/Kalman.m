@@ -13,12 +13,23 @@
 % *x(2)* - velocity
 %
 % $$x_{k+1} = Fx_k+w_k$$
-%% Intitialization
+%% Constant
 N = 100;
 sigma = 1;
 sigmaR = 1;
+sigmaF = 1;
 T = 1;
 
+%% Moving
+tspan = 1:T:100*T;
+[t, Y] = ode45(@Kalman_moving, tspan, [0 0 2 0 0 2]);
+%plot(t, Y(:,1));
+[fi, Rad] = cart2pol(Y(:,1), Y(:,4));
+k = zeros(1,N);
+for i=2:N
+    k(i) = k(i-1)+T;
+end
+%% Intitialization
 F = [1 T T*T/2 0 0    0;
      0 1   T   0 0    0;
      0 0   1   0 0    0;
@@ -31,10 +42,21 @@ P = [sigmaR^2        3*sigmaR^2/(2*T)       sigmaR^2/(T*T)       0              
     0                0                      0                    sigmaR^2         3*sigmaR^2/(2*T)       sigmaR^2/(T*T);
     0                0                      0                    3*sigmaR^2/(2*T) 13*sigmaR^2/(2*T*T)    6*sigmaR^2/(T*T*T);
     0                0                      0                    sigmaR^2/(T*T)   6*sigmaR^2/(T*T*T)     6*sigmaR^2/(T*T*T*T)];
+sigmaX  = (sigmaR*cos(fi(3)))^2     + (Rad(3)*sigmaF*sin(fi(3)))^2;
+sigmaY  = (sigmaR*sin(fi(3)))^2     + (Rad(3)*sigmaF*cos(fi(3)))^2;
+sigmaXY = (sin(2*fi(3))*sigmaR^2)/2 - (sin(2*fi(3))*(Rad(3)*sigmaF)^2)/2;
+PF = [sigmaX         3*sigmaX/(2*T)     sigmaX/(T*T)       sigmaXY         3*sigmaXY/(2*T)    sigmaXY/(T*T);
+     3*sigmaX/(2*T)  13*sigmaX/(2*T*T)  6*sigmaX/(T*T*T)   3*sigmaXY/(2*T) 13*sigmaXY/(2*T*T) 6*sigmaXY/(T*T*T);
+     sigmaX/(T*T)    6*sigmaX/(T*T*T)   6*sigmaX/(T*T*T*T) sigmaX/(T*T)    6*sigmaX/(T*T*T)   6*sigmaX/(T*T*T*T);
+     sigmaXY         3*sigmaXY/(2*T)    sigmaXY/(T*T)      sigmaY          3*sigmaY/(2*T )    sigmaY/(T*T);
+     3*sigmaXY/(2*T) 13*sigmaXY/(2*T*T) 6*sigmaXY/(T*T*T)  3*sigmaY/(2*T)  13*sigmaY/(2*T*T)  6*sigmaY/(T*T*T);
+     sigmaX/(T*T)    6*sigmaX/(T*T*T)   6*sigmaX/(T*T*T*T) sigmaY/(T*T)    6*sigmaY/(T*T*T)   6*sigmaY/(T*T*T*T)];
 H = [1 0 0 0 0 0;
      0 0 0 1 0 0];
 R = [sigma^2    0;
     0          sigma^2];
+RF = [sigmaX    sigmaXY;
+      sigmaXY   sigmaY];
 Q = zeros(6);
 I = [1 0 0 0 0 0;
      0 1 0 0 0 0;
@@ -54,16 +76,6 @@ Kaa = 0;
 pfk = zeros(6);
 
 K = zeros(6, 2);
-%Gz = zeros(6, N);
-%% moving
-tspan = 1:T:100*T;
-[t, Y] = ode45(@Kalman_moving, tspan, [0 0 2 0 0 2]);
-%plot(t, Y(:,1));
-[fi, Rad] = cart2pol(Y(:,1), Y(:,4));
-k = zeros(1,N);
-for i=2:N
-    k(i) = k(i-1)+T;
-end
 %% Test
 z(:,1) = [0; 0; 2; 0; 0; 2];
 z(:,2) = [1; 2; 2; 1; 2; 2];
@@ -103,22 +115,23 @@ for i=1:N
         xF(6,i) = (xF(4,i) - 2*xF(4,i-1) + xF(4,i-2))/(T*T);
         xF(5,i) = (xF(4,i) - xF(4,i-2))/(2*T) + xF(6,i)*T;
         
-        Krv = 3*sigmaR/(2*T);
-        Kra = sigmaR/(T*T);
-        Kvv = 13*sigmaR/(2*T*T);
-        Kva = 6*sigmaR/(T*T*T);
-        Kaa = 6*sigmaR/(T*T*T*T);
+%         Krv = 3*sigmaR/(2*T);
+%         Kra = sigmaR/(T*T);
+%         Kvv = 13*sigmaR/(2*T*T);
+%         Kva = 6*sigmaR/(T*T*T);
+%         Kaa = 6*sigmaR/(T*T*T*T);
     else
         %measurement      
         
         %prediction
         P = F*P*F'+Q;
-        sigmaR = sigmaR + 2*T*Krv + T*T*(Kra+Kvv) + T*T*T*Kva + T*T*T*T*Kaa/4;
-        Krv = Krv + T*(Kra+Kvv) + 3*T*T*Kva/2 + T*T*T*Kaa/2;
-        Kra = Kra + T*Kva + T*T*Kaa/2;
-        Kvv = Kvv + 2*T*Kva + T*T*Kaa;
-        Kva = Kva + T*Kaa;
-        pfk = [sigmaR Krv Kra; Krv Kvv Kva; Kra Kva Kaa];
+        PF = F*PF*F'+Q;
+%         sigmaR = sigmaR + 2*T*Krv + T*T*(Kra+Kvv) + T*T*T*Kva + T*T*T*T*Kaa/4;
+%         Krv = Krv + T*(Kra+Kvv) + 3*T*T*Kva/2 + T*T*T*Kaa/2;
+%         Kra = Kra + T*Kva + T*T*Kaa/2;
+%         Kvv = Kvv + 2*T*Kva + T*T*Kaa;
+%         Kva = Kva + T*Kaa;
+%         pfk = [sigmaR Krv Kra; Krv Kvv Kva; Kra Kva Kaa];
         
         %x_k = F*x_k_1;
         x(:,i) = F*x(:,i-1);
@@ -141,31 +154,32 @@ for i=1:N
         else
             %Kalman gain(blending factor)
             G = P*H'/(H*P*H'+R);
-            W = 1/(sigmaR+sigma);
-            Wv = Krv/(sigmaR+sigma);
-            K = [W*sigmaR; W*Krv; W*Kra];
-            
-                       
+            GF = PF*H'/(H*PF*H'+R);
+%             W = 1/(sigmaR+sigma);
+%             Wv = Krv/(sigmaR+sigma);
+%             K = [W*sigmaR; W*Krv; W*Kra];
+                    
             P = (I-G*H)*P;
-            sigmaR = W*sigmaR*sigma;
-            Kaa = Kaa - W*Kra*Kra;
-            Kvv = Kvv  - Wv*Krv;
-            Kva = Kva - W*Krv*Kra;
-            Krv = W*sigma*Krv;
-            Kra = W*sigma*Kra;
-            pfk = [sigmaR Krv Kra; Krv Kvv Kva; Kra Kva Kaa];
+            PF = (I-GF*H)*PF;
+%             sigmaR = W*sigmaR*sigma;
+%             Kaa = Kaa - W*Kra*Kra;
+%             Kvv = Kvv  - Wv*Krv;
+%             Kva = Kva - W*Krv*Kra;
+%             Krv = W*sigma*Krv;
+%             Kra = W*sigma*Kra;
+%             pfk = [sigmaR Krv Kra; Krv Kvv Kva; Kra Kva Kaa];
                
-            n=i;  
-            k11 = 3*(3*n*n - 3*n + 2)/(n*(n+1)*(n+2));
-            k12 = 18*(2*n-1)/(n*(n+1)*(n+2));
-            k13 = 60/(n*(n+1)*(n+2));
-            k22 = (12*(2*n-1)*(8*n-11))/(n*(n*n-4)*(n*n-1));
-            k23 = 360/(n*(n*n-4)*(n+1));
-            k33 = 720/(n*(n*n-4)*(n*n-1));        
-            Pnew = [k11 k12 k13; k12 k22 k23; k13 k23 k33];
-            
+%             n=i;  
+%             k11 = 3*(3*n*n - 3*n + 2)/(n*(n+1)*(n+2));
+%             k12 = 18*(2*n-1)/(n*(n+1)*(n+2));
+%             k13 = 60/(n*(n+1)*(n+2));
+%             k22 = (12*(2*n-1)*(8*n-11))/(n*(n*n-4)*(n*n-1));
+%             k23 = 360/(n*(n*n-4)*(n+1));
+%             k33 = 720/(n*(n*n-4)*(n*n-1));        
+%             Pnew = [k11 k12 k13; k12 k22 k23; k13 k23 k33]
+
             x(:,i) = x(:,i) + G*([z(1,i); z(4,i)] - H*x(:,i));
-			xF(:,i) = xF(:,i) + G*([z(1,i); z(4,i)]-H*xF(:,i));
+			xF(:,i) = xF(:,i) + GF*([z(1,i); z(4,i)]-H*xF(:,i));
         end
     end    
 end
